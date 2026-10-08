@@ -20,10 +20,13 @@ upgrade, worker moves, save, reload restore, blur while holding a key must stop 
 `npm run dev` / `npm run build`
 
 ## Multi-island + side content
-- Islands are data (`data/islands.ts`); travel = boat at the dock (`IslandScene.board`) charging `unlockCost`. Upgrades/workers carry over; `stats.islandEarned` and `questIndex` reset per island. Quests are per island (`data/quests.ts`).
+- Islands are data (`data/islands.ts`); travel = boat at the dock (`IslandScene.board`) charging `unlockCost`. Upgrades/workers carry over. There are no missions or island-clear gates: island N+1 is available once island N has been visited (ticket cost only).
 - Golden trees (`kind: 'golden'`) give rare golden coconuts (player only, workers skip them).
 - Temple (optional side content, `TempleScene` + `temple/`, one per island in `data/temple.ts`): jump course (bonus coin gems) -> island guardian boss. Beating it grants that island's relic (`data/collectibles.ts`, +5% sell price each). Keep it OPTIONAL: do not gate island progress on it.
-- Save v4: `completedIslands`, `golden`, `collectibles`, `stats.islandEarned/golden` (v1 saves migrate in `SaveSystem`).
+- Save v7: `golden`, `collectibles`, `visitedIslands`; missions / `completedIslands` / `islandProgress` were removed (old saves migrate in `SaveSystem`).
 - Dev-only `window.__game` exposes the Phaser game for headless tests.
-- Relics from earlier islands are boss abilities (keys 1/2/3 or tap): Sun Beam (pierces armor), Moon Shield, Star Stun. Island 2+ guardians get Stone Armor in phase 2, so relics help a lot but are not strictly required.
+- Relics only give a permanent +5% coconut sell price each; they have no effect in boss fights (no abilities). Island 2+ guardians get armor in phase 2 (coconut hits x0.6, `ARMOR_MULT`).
+- Kraken: each boat trip has a 1% chance (`data/events.ts` KRAKEN) of a dodge-the-tentacles mini-game (`KrakenScene`); the trip continues either way.
+- Admin pad: type `1558726` anywhere in game (`ui/AdminPanel.ts`, DOM overlay) -> money, coconut price, bag size, boss HP, my HP, events (Kraken, Golden Rush). Price/bag overrides are saved in `admin` (save v6).
 - Island 3 (Jungle): `autoSellStorage: false` -> Carriers (`workers/Carrier.ts`, `gameState.data.carriers`, hired at the hire hut only on such islands) haul storage -> sell stand. Save v5 adds `carriers`.
+- Island 4 (Volcano): `treeStyle: 'volcano'`, Magma Titan boss (`relic_flame`, no ability key), auto-sell off like island 3. Boss HP: 21/30/36/45. Charge attack uses a low hitbox (jumpable).

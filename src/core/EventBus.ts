@@ -9,9 +9,6 @@ export const EVT = {
   SOLD: 'sold',
   UPGRADE: 'upgrade',
   WORKER: 'worker',
-  QUEST: 'quest',
-  ISLAND_PROGRESS: 'island-progress',
-  ISLAND_COMPLETE: 'island-complete',
   PANEL_OPEN: 'panel-open',
   PANEL_CLOSE: 'panel-close',
   BANNER: 'banner',
@@ -23,6 +20,9 @@ export const EVT = {
   TRAVEL_MENU: 'travel-menu',
   TRAVEL: 'travel',
   COLLECTED: 'collected',
+  GAME_EVENT: 'game-event',
+  ADMIN_BOSS_HP: 'admin-boss-hp',
+  ADMIN_HEARTS: 'admin-hearts',
 } as const;
 
 export type PanelKind = 'shop' | 'hire';

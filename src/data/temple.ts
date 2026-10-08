@@ -69,7 +69,7 @@ export interface TempleDef {
   islandId: number;
   bossName: string;
   bossHp: number;
-  /** Phase-2 armor (needs relic abilities to be efficient). */
+  /** Phase-2 armor: coconuts hurt less (see ARMOR_MULT). */
   armor: boolean;
   armorName: string;
   /** Sideways charge attack (jump over it). */
@@ -92,7 +92,7 @@ export const TEMPLES: TempleDef[] = [
   {
     islandId: 1,
     bossName: 'Coconut Crab King',
-    bossHp: 14,
+    bossHp: 21,
     armor: false,
     armorName: '',
     charge: true,
@@ -108,7 +108,7 @@ export const TEMPLES: TempleDef[] = [
   {
     islandId: 2,
     bossName: 'Golden Colossus',
-    bossHp: 20,
+    bossHp: 30,
     armor: true,
     armorName: 'GILDED ARMOR!',
     charge: false,
@@ -124,7 +124,7 @@ export const TEMPLES: TempleDef[] = [
   {
     islandId: 3,
     bossName: 'Elder Treant',
-    bossHp: 24,
+    bossHp: 36,
     armor: true,
     armorName: 'BARK ARMOR!',
     charge: false,
@@ -137,33 +137,27 @@ export const TEMPLES: TempleDef[] = [
     relicId: 'relic_star',
     reward: 3000,
   },
+  {
+    islandId: 4,
+    bossName: 'Magma Titan',
+    bossHp: 45,
+    armor: true,
+    armorName: 'OBSIDIAN ARMOR!',
+    charge: true,
+    rockBonus: 1,
+    aggression: 1,
+    bossTexture: 'boss_magma',
+    rollTexture: 'ember',
+    dropTexture: 'lava_rock',
+    theme: { bg: 0x2a0f0a, pillarA: 0x4a1a12, pillarB: 0x6b2a18, platform: 0x4a3a38, platformTop: 0xff8a3a },
+    relicId: 'relic_flame',
+    reward: 6000,
+  },
 ];
 
 export function getTemple(islandId: number): TempleDef {
   return TEMPLES.find((t) => t.islandId === islandId) ?? TEMPLES[0];
 }
 
-/** Island relics double as boss abilities (key = desktop shortcut). Relics come from earlier islands' bosses. */
-export interface RelicAbility {
-  id: string;
-  key: string;
-  label: string;
-  icon: string;
-  cooldown: number;
-}
-
-export const ABILITIES: RelicAbility[] = [
-  { id: 'relic_sun', key: 'Digit1', label: 'Sun Beam', icon: '☀️', cooldown: 12 },
-  { id: 'relic_moon', key: 'Digit2', label: 'Moon Shield', icon: '🌙', cooldown: 14 },
-  { id: 'relic_star', key: 'Digit3', label: 'Star Stun', icon: '⭐', cooldown: 16 },
-];
-
-export const ABILITY_TUNING = {
-  sunDamage: 6,
-  shieldSec: 4,
-  stunSec: 3,
-  /** Coconut damage multiplier while the boss wears Stone Armor (phase 2). */
-  armorMult: 0.35,
-  /** Damage multiplier while stunned. */
-  stunMult: 2,
-};
+/** Phase-2 armor: coconut damage multiplier for temples that define `armor`. */
+export const ARMOR_MULT = 0.6;

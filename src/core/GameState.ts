@@ -13,16 +13,13 @@ export interface SaveData {
   workers: number;
   /** Carriers haul storage -> sell stand on islands without auto-sell. */
   carriers: number;
-  questIndex: number;
-  completedIslands: number[];
   /** Islands the player has already sailed to (can be revisited for free). */
   visitedIslands: number[];
-  /** Saved per-island progress for islands the player is not currently on. */
-  islandProgress: Record<number, { questIndex: number; earned: number }>;
-  /** `earned` is lifetime, `islandEarned` resets when travelling to a new island. */
-  stats: { harvested: number; sold: number; earned: number; islandEarned: number; golden: number };
+  stats: { harvested: number; sold: number; earned: number; golden: number };
   collectibles: string[];
   settings: { sound: boolean };
+  /** Admin-pad overrides (null = use the normal value). */
+  admin: { bagCapacity: number | null; coconutPrice: number | null };
 }
 
 export function defaultSave(): SaveData {
@@ -35,13 +32,11 @@ export function defaultSave(): SaveData {
     upgrades: { harvestPower: 1, harvestSpeed: 1, bagCapacity: 1, moveSpeed: 1 },
     workers: 0,
     carriers: 0,
-    questIndex: 0,
-    completedIslands: [],
     visitedIslands: [1],
-    islandProgress: {},
-    stats: { harvested: 0, sold: 0, earned: 0, islandEarned: 0, golden: 0 },
+    stats: { harvested: 0, sold: 0, earned: 0, golden: 0 },
     collectibles: [],
     settings: { sound: true },
+    admin: { bagCapacity: null, coconutPrice: null },
   };
 }
 
@@ -54,10 +49,6 @@ class GameStateStore {
 
   reset(): void {
     this.data = defaultSave();
-  }
-
-  isCompleted(id = this.data.islandId): boolean {
-    return this.data.completedIslands.includes(id);
   }
 
   hasCollectible(id: string): boolean {

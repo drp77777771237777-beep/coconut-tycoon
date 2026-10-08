@@ -1,11 +1,3 @@
-import type { QuestStat } from './quests';
-
-export interface IslandGoal {
-  stat: QuestStat;
-  target: number;
-  label: string;
-}
-
 export interface Point {
   x: number;
   y: number;
@@ -45,8 +37,7 @@ export interface IslandDef {
   /** false = storage keeps coconuts for Carriers to haul to the sell stand (default: auto-sell). */
   autoSellStorage?: boolean;
   /** Tree art set. */
-  treeStyle?: 'jungle';
-  goals: IslandGoal[];
+  treeStyle?: 'jungle' | 'volcano';
 }
 
 const WORLD = { width: 1600, height: 1200 };
@@ -86,12 +77,6 @@ export const ISLANDS: IslandDef[] = [
     storage: { x: 570, y: 790 },
     dock: { x: 800, y: 950 },
     temple: { x: 1210, y: 330 },
-    goals: [
-      { stat: 'earned', target: 5000, label: 'Earn 5,000 coins' },
-      { stat: 'workers', target: 1, label: 'Hire a worker' },
-      { stat: 'bagLevel', target: 3, label: 'Bag Lv3' },
-      { stat: 'harvestLevel', target: 3, label: 'Harvest Lv3' },
-    ],
   },
   {
     id: 2,
@@ -131,13 +116,6 @@ export const ISLANDS: IslandDef[] = [
     storage: { x: 570, y: 800 },
     dock: { x: 800, y: 950 },
     temple: { x: 1210, y: 330 },
-    goals: [
-      { stat: 'earned', target: 20000, label: 'Earn 20,000 coins here' },
-      { stat: 'workers', target: 3, label: 'Have 3 workers' },
-      { stat: 'bagLevel', target: 5, label: 'Bag Lv5' },
-      { stat: 'harvestLevel', target: 4, label: 'Harvest Lv4' },
-      { stat: 'golden', target: 10, label: 'Harvest 10 golden coconuts' },
-    ],
   },
 ];
 
@@ -188,15 +166,53 @@ const ISLAND_3: IslandDef = {
   temple: { x: 1210, y: 330 },
   autoSellStorage: false,
   treeStyle: 'jungle',
-  goals: [
-    { stat: 'earned', target: 50000, label: 'Earn 50,000 coins here' },
-    { stat: 'workers', target: 5, label: 'Have 5 harvesters' },
-    { stat: 'carriers', target: 2, label: 'Have 2 carriers' },
-    { stat: 'bagLevel', target: 6, label: 'Bag Lv6' },
-    { stat: 'harvestLevel', target: 5, label: 'Harvest Lv5' },
-  ],
 };
 ISLANDS.push(ISLAND_3);
+
+const ISLAND_4: IslandDef = {
+  id: 4,
+  name: 'Volcano Island',
+  coconutType: 'magma',
+  sellMultiplier: 4,
+  unlockCost: 10000,
+  world: WORLD,
+  shape: SHAPE,
+  theme: { grass: 0x5a4a44, grassLight: 0x6a5750, sand: 0x3a3236, sandDark: 0x2a2428 },
+  spawn: { x: 900, y: 720 },
+  trees: [
+    { x: 430, y: 420 },
+    { x: 560, y: 370 },
+    { x: 700, y: 350 },
+    { x: 360, y: 530 },
+    { x: 500, y: 510 },
+    { x: 640, y: 490 },
+    { x: 780, y: 440 },
+    { x: 340, y: 650 },
+    { x: 480, y: 660 },
+    { x: 620, y: 650 },
+    { x: 760, y: 620 },
+    { x: 900, y: 360 },
+    { x: 560, y: 740 },
+    { x: 1030, y: 340, kind: 'golden' },
+    { x: 290, y: 540, kind: 'golden' },
+    { x: 940, y: 650, kind: 'golden' },
+  ],
+  rocks: [
+    { x: 1250, y: 470 },
+    { x: 250, y: 740 },
+    { x: 1000, y: 880 },
+    { x: 1330, y: 640 },
+  ],
+  sellZone: { x: 1130, y: 600 },
+  shop: { x: 1010, y: 430 },
+  hire: { x: 1190, y: 790 },
+  storage: { x: 850, y: 820 },
+  dock: { x: 800, y: 950 },
+  temple: { x: 1210, y: 330 },
+  autoSellStorage: false,
+  treeStyle: 'volcano',
+};
+ISLANDS.push(ISLAND_4);
 
 export function getIsland(id: number): IslandDef {
   return ISLANDS.find((i) => i.id === id) ?? ISLANDS[0];

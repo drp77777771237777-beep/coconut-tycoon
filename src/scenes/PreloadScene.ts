@@ -32,6 +32,12 @@ export class PreloadScene extends Phaser.Scene {
       g.fillStyle(0x2f9e44, 1).fillTriangle(6, 28, 20, 0, 34, 24).fillTriangle(30, 24, 48, -2, 62, 22).fillTriangle(58, 24, 76, 2, 88, 28);
       g.lineStyle(4, 0x2f9e44, 1).lineBetween(6, 70, 6, 120).lineBetween(124, 70, 124, 118).lineBetween(100, 52, 112, 100);
     });
+    this.makeTree(g, 'tree_volcano_full', true, [0x5a2a1a, 0x7a3a22, 0xa8502c], 0xff7a1a);
+    this.makeTree(g, 'tree_volcano_empty', false, [0x5a2a1a, 0x7a3a22, 0xa8502c], 0xff7a1a);
+    this.makeBoss(g, 'boss_magma', { body: 0x4a3a38, head: 0x6a5048, dark: 0x241a18, eye: 0xffb03a, core: 0xff5a1a }, () => {
+      g.fillStyle(0xff7a1a, 1).fillTriangle(10, 26, 22, 4, 34, 24).fillTriangle(40, 22, 58, 0, 74, 22).fillTriangle(80, 24, 98, 4, 112, 26);
+      g.lineStyle(4, 0xff5a1a, 1).lineBetween(8, 70, 8, 118).lineBetween(122, 70, 122, 116).lineBetween(96, 50, 110, 98);
+    });
     this.makeCrab(g);
     this.makeThemeProps(g);
     this.makeMisc(g);
@@ -191,6 +197,15 @@ export class PreloadScene extends Phaser.Scene {
       g.fillTriangle(15 + Math.cos(r - 0.25) * 9, 15 + Math.sin(r - 0.25) * 9, 15 + Math.cos(r + 0.25) * 9, 15 + Math.sin(r + 0.25) * 9, 15 + Math.cos(r) * 15, 15 + Math.sin(r) * 15);
     }
     this.done(g, 'thorn_seed', 30, 30);
+    // ember boulder (rolling hazard)
+    g.fillStyle(0x3a2a28, 1).fillCircle(22, 22, 22);
+    g.fillStyle(0xff7a1a, 1).fillCircle(15, 14, 7).fillCircle(29, 28, 5);
+    g.lineStyle(3, 0xffb03a, 1).lineBetween(8, 14, 30, 30).lineBetween(26, 6, 36, 24);
+    this.done(g, 'ember', 44, 44);
+    // lava rock (falling hazard)
+    g.fillStyle(0x3a2a28, 1).fillCircle(15, 15, 15);
+    g.fillStyle(0xff5a1a, 1).fillCircle(10, 10, 5).fillCircle(20, 20, 4);
+    this.done(g, 'lava_rock', 30, 30);
     // gold nugget (rolling hazard)
     g.fillStyle(0xd4a017, 1).fillCircle(22, 22, 22);
     g.fillStyle(0xffe27a, 1).fillCircle(15, 14, 8);

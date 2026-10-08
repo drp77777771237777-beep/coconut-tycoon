@@ -17,6 +17,11 @@ export const UpgradeSystem = {
     return UPGRADES[id].levels[level - 1].value;
   },
 
+  /** Bag size: the admin override if set, otherwise the upgrade value. */
+  bagCapacity(): number {
+    return gameState.data.admin.bagCapacity ?? UpgradeSystem.value('bagCapacity');
+  },
+
   /** Cost of the next level, or null when maxed. */
   nextCost(id: UpgradeId): number | null {
     const next = UPGRADES[id].levels[gameState.data.upgrades[id]];

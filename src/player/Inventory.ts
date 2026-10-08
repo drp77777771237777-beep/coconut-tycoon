@@ -8,7 +8,7 @@ export class Inventory {
   }
 
   get capacity(): number {
-    return UpgradeSystem.value('bagCapacity');
+    return UpgradeSystem.bagCapacity();
   }
 
   get free(): number {

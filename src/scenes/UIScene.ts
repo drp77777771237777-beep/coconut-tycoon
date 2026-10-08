@@ -6,8 +6,8 @@ import { touchInput, TouchJoystick } from '../input/TouchInput';
 import { COLLECTIBLES } from '../data/collectibles';
 import type { TravelOption } from '../systems/TravelSystem';
 import { Economy } from '../systems/EconomySystem';
+import { AdminPanel } from '../ui/AdminPanel';
 import { HUD } from '../ui/HUD';
-import { QuestPanel } from '../ui/QuestPanel';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { clamp } from '../utils/MathUtils';
 
@@ -21,7 +21,7 @@ interface BannerArgs {
 /** Screen-space UI, kept separate from the world scene. Talks to the world only through the EventBus. */
 export class UIScene extends Phaser.Scene {
   private hud!: HUD;
-  private quest!: QuestPanel;
+  private admin!: AdminPanel;
   private panel!: UpgradePanel;
   private banner!: Phaser.GameObjects.Text;
   private bannerSub!: Phaser.GameObjects.Text;
@@ -41,7 +41,7 @@ export class UIScene extends Phaser.Scene {
 
   create(): void {
     this.hud = new HUD(this);
-    this.quest = new QuestPanel(this);
+    this.admin = new AdminPanel(this.game);
     this.panel = new UpgradePanel(this, () => this.layout());
 
     const textStyle = { fontFamily: FONT, fontStyle: 'bold', color: '#ffffff', stroke: '#06324a', strokeThickness: 8, align: 'center' };
@@ -80,7 +80,7 @@ export class UIScene extends Phaser.Scene {
       this.scale.off('resize', this.layout, this);
       this.subs.clear();
       this.hud.destroy();
-      this.quest.destroy();
+      this.admin.destroy();
       this.panel.destroy();
     });
     this.layout();
@@ -98,7 +98,6 @@ export class UIScene extends Phaser.Scene {
     const { width: w, height: h } = this.scale;
     const s = clamp(Math.min(w / 640, 1), 0.7, 1);
     this.hud.container.setScale(s).setPosition(12, 10);
-    this.quest.container.setScale(s).setPosition(w - 12 - this.quest.width * s, 10);
 
     this.panel.container.setScale(Math.min(s, (w - 20) / this.panel.width));
     const ps = this.panel.container.scaleX;
@@ -186,7 +185,7 @@ export class UIScene extends Phaser.Scene {
     opts.forEach((o, i) => {
       const y = top + 90 + i * rowH;
       const status =
-        o.state === 'current' ? 'You are here' : o.state === 'visited' ? 'Visited · free' : o.state === 'available' ? 'New island!' : 'Complete the previous island';
+        o.state === 'current' ? 'You are here' : o.state === 'visited' ? 'Visited · free' : o.state === 'available' ? 'New island!' : 'Visit the previous island first';
       items.push(
         this.add.text(-200, y - 10, 'Island ' + o.island.id + ' · ' + o.island.name, { fontFamily: FONT, fontSize: '19px', fontStyle: 'bold', color: o.state === 'locked' ? '#8aa3b0' : '#ffffff' }).setOrigin(0, 0.5),
         this.add.text(-200, y + 14, status, { fontFamily: FONT, fontSize: '13px', color: '#9cc4d8' }).setOrigin(0, 0.5),

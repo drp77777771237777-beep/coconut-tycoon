@@ -4,10 +4,6 @@ import { COLLECTIBLES } from '../data/collectibles';
 import { SaveSystem } from './SaveSystem';
 
 export const CollectionSystem = {
-  has(id: string): boolean {
-    return gameState.hasCollectible(id);
-  },
-
   /** Returns true when the item was newly collected. */
   collect(id: string): boolean {
     const def = COLLECTIBLES.find((c) => c.id === id);

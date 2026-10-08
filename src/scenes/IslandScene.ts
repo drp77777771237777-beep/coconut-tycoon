@@ -2,16 +2,16 @@ import Phaser from 'phaser';
 import { EVT, EventSubs, eventBus } from '../core/EventBus';
 import { SCENES, WATER_COLOR } from '../core/GameConfig';
 import { gameState } from '../core/GameState';
+import { KRAKEN, type GameEventId } from '../data/events';
 import { getIsland } from '../data/islands';
+import { Economy } from '../systems/EconomySystem';
 import { TravelSystem } from '../systems/TravelSystem';
 import { KeyboardInput } from '../input/KeyboardInput';
 import { Inventory } from '../player/Inventory';
 import { Player } from '../player/Player';
 import { PlayerController } from '../player/PlayerController';
 import { HarvestSystem } from '../systems/HarvestSystem';
-import { QuestSystem } from '../systems/QuestSystem';
 import { SaveSystem } from '../systems/SaveSystem';
-import { UnlockSystem } from '../systems/UnlockSystem';
 import { FloatingTextManager } from '../ui/FloatingText';
 import { clamp } from '../utils/MathUtils';
 import { OVERLAY_DEPTH } from '../utils/DepthUtils';
@@ -64,17 +64,14 @@ export class IslandScene extends Phaser.Scene {
     this.updateZoom();
     this.scale.on('resize', this.updateZoom, this);
 
-    this.island.dock.setActive(TravelSystem.boatReady());
     this.subs.on(EVT.BOARD, () => this.board());
     this.subs.on(EVT.TRAVEL, (id: number) => this.travelTo(id));
-    this.subs.on(EVT.ISLAND_COMPLETE, () => this.island.dock.setActive(true));
+    this.subs.on(EVT.GAME_EVENT, (id: GameEventId) => this.runEvent(id));
     this.subs.on(EVT.UPGRADE, (id: UpgradeId) => {
       this.floating.spawn(this.player.x, this.player.y, `UPGRADE! ${UPGRADES[id].label}`, '#9dffb0');
     });
 
     cam.fadeIn(500);
-    QuestSystem.start();
-    UnlockSystem.start();
     SaveSystem.start();
     this.scene.launch(SCENES.ui);
     if (data?.arrived) {
@@ -141,7 +138,23 @@ export class IslandScene extends Phaser.Scene {
     this.leaving = true;
     eventBus.emit(EVT.SOUND, 'boat');
     this.cameras.main.fadeOut(700);
-    this.time.delayedCall(720, () => this.scene.restart({ arrived: true }));
+    const kraken = Math.random() < KRAKEN.chance;
+    this.time.delayedCall(720, () => (kraken ? this.scene.start(SCENES.kraken, { arrived: true }) : this.scene.restart({ arrived: true })));
+  }
+
+  /** Admin-pad events. */
+  private runEvent(id: GameEventId): void {
+    if (this.leaving) return;
+    if (id === 'kraken') {
+      this.leaving = true;
+      eventBus.emit(EVT.SOUND, 'boat');
+      this.cameras.main.fadeOut(700);
+      this.time.delayedCall(720, () => this.scene.start(SCENES.kraken, { arrived: false }));
+    } else {
+      Economy.startRush();
+      eventBus.emit(EVT.SOUND, 'complete');
+      eventBus.emit(EVT.BANNER, { text: 'GOLDEN RUSH!', sub: 'Coconut prices x2 for 60 seconds', color: '#ffd23f', big: true });
+    }
   }
 
   /** Points toward the sell stand while the bag is full. */

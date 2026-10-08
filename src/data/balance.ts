@@ -7,7 +7,6 @@ export const BALANCE = {
   sellTickSec: 0.05,
   sellChunkDivisor: 20,
   storageAutoSellSec: 0.5,
-  questRewardScale: 1,
   /** Golden coconut: rare resource found only on golden trees. */
   goldenValue: 60,
   goldenTreeRespawnSec: 20,

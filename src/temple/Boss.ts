@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { ABILITY_TUNING, type TempleDef } from '../data/temple';
+import { ARMOR_MULT, type TempleDef } from '../data/temple';
 
 /**
  * Temple guardian: stationary boss that rolls boulders and drops rocks.
- * When the temple defines `armor`, phase 2 adds Stone Armor (coconuts barely hurt) which relic abilities bypass.
+ * When the temple defines `armor`, phase 2 adds Stone Armor (coconuts barely hurt) which weakens coconut hits.
  */
 export class Boss {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
@@ -11,8 +11,6 @@ export class Boss {
   hp: number;
   readonly maxHp: number;
   defeated = false;
-  /** Seconds of stun left (attacks paused, armor off, extra damage). */
-  stunLeft = 0;
   onArmorUp?: () => void;
   private timer = 2.2;
   private pattern = 0;
@@ -20,8 +18,10 @@ export class Boss {
   private armorAnnounced = false;
   private charging = false;
   private chargeChain?: Phaser.Tweens.TweenChain;
+  /** Magma boulder shown while the boss dashes out and rolls back. */
+  private boulderForm?: Phaser.GameObjects.Image;
+  private lastX = 0;
   private readonly originX: number;
-  private stars?: Phaser.GameObjects.Text;
 
   constructor(
     private scene: Phaser.Scene,
@@ -38,48 +38,37 @@ export class Boss {
     scene.tweens.add({ targets: this.sprite, scaleY: 1.03, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
-  get stunned(): boolean {
-    return this.stunLeft > 0;
-  }
-
   get phase2(): boolean {
     return this.hp <= this.maxHp / 2;
   }
 
-  /** Phase-2 armor (only for temples that define it), removed while stunned. */
+  /** Phase-2 armor (only for temples that define it). */
   get armored(): boolean {
-    return this.def.armor && this.phase2 && !this.stunned && !this.defeated;
+    return this.def.armor && this.phase2 && !this.defeated;
   }
 
-  /** `pierce` ignores armor (Sun Beam). Returns the damage actually dealt. */
-  hit(damage: number, pierce = false): number {
+  /** Returns the damage actually dealt. */
+  hit(damage: number): number {
     if (this.defeated) return 0;
-    let dmg = damage;
-    if (this.armored && !pierce) dmg *= ABILITY_TUNING.armorMult;
-    if (this.stunned) dmg *= ABILITY_TUNING.stunMult;
-    this.hp = Math.max(0, this.hp - dmg);
+    const dmg = this.armored ? damage * ARMOR_MULT : damage;
+    this.setHp(this.hp - dmg);
     this.flash = 0.09;
-    if (this.hp === 0) this.defeat();
     return dmg;
   }
 
-  stun(seconds: number): void {
+  /** Clamp to [0, maxHp]; reaching 0 defeats the boss. */
+  setHp(value: number): void {
     if (this.defeated) return;
-    this.stunLeft = seconds;
-    if (this.charging) this.abortCharge();
-    this.stars?.destroy();
-    this.stars = this.scene.add
-      .text(this.sprite.x, this.sprite.y - this.sprite.displayHeight - 8, '⭐ ⭐ ⭐', { fontSize: '26px' })
-      .setOrigin(0.5, 1)
-      .setDepth(20);
-    this.scene.tweens.add({ targets: this.stars, angle: 8, duration: 220, yoyo: true, repeat: -1 });
+    this.hp = Math.min(this.maxHp, Math.max(0, value));
+    if (this.hp === 0) this.defeat();
   }
 
   private defeat(): void {
     this.defeated = true;
     this.chargeChain?.stop();
+    this.boulderForm?.destroy();
+    this.boulderForm = undefined;
     this.hazards.clear(true, true);
-    this.stars?.destroy();
     this.sprite.clearTint();
     this.scene.tweens.add({
       targets: this.sprite,
@@ -94,29 +83,20 @@ export class Boss {
   update(dt: number, playerX: number): void {
     if (this.defeated) return;
     this.flash = Math.max(0, this.flash - dt);
-    if (this.stunned) {
-      this.stunLeft = Math.max(0, this.stunLeft - dt);
-      if (!this.stunned) {
-        this.stars?.destroy();
-        this.stars = undefined;
-      }
-    }
     if (this.def.armor && this.phase2 && !this.armorAnnounced) {
       this.armorAnnounced = true;
       this.onArmorUp?.();
     }
 
     if (this.flash > 0) this.sprite.setTint(0xff9a9a);
-    else if (this.stunned) this.sprite.setTint(0xfff3a0);
     else if (this.armored) this.sprite.setTint(0x9fb4ff);
     else this.sprite.clearTint();
 
-    if (!this.stunned) {
-      this.timer -= dt;
-      if (this.timer <= 0) {
-        this.timer = (this.phase2 ? 1.5 : 2.4) / this.def.aggression;
-        this.attack(playerX);
-      }
+    this.rollBoulder();
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      this.timer = (this.phase2 ? 1.5 : 2.4) / this.def.aggression;
+      this.attack(playerX);
     }
     for (const obj of this.hazards.getChildren()) {
       const h = obj as Phaser.Physics.Arcade.Sprite;
@@ -129,33 +109,49 @@ export class Boss {
     }
   }
 
-  /** Crab King: shake to warn, dash sideways across the arena, then scuttle back. Jump over it. */
+  /** Shake to warn, then the boss becomes a magma boulder: dash across the arena and roll back. Jump over it. */
   private charge(): void {
     this.charging = true;
     this.chargeChain = this.scene.tweens.chain({
       targets: this.sprite,
       tweens: [
-        { x: this.originX + 6, duration: 70, yoyo: true, repeat: 7 },
-        { x: 60, duration: 1100, ease: 'Quad.easeIn' },
+        { x: this.originX + 6, duration: 90, yoyo: true, repeat: 9, onComplete: () => this.setBoulderForm(true) },
+        { x: 60, duration: 1500, ease: 'Sine.easeIn' },
         { x: 60, duration: 250 },
         { x: this.originX, duration: 1400, ease: 'Sine.easeInOut' },
       ],
       onComplete: () => {
+        this.setBoulderForm(false);
         this.charging = false;
       },
     });
   }
 
-  private abortCharge(): void {
-    this.chargeChain?.stop();
-    this.scene.tweens.add({
-      targets: this.sprite,
-      x: this.originX,
-      duration: 600,
-      onComplete: () => {
-        this.charging = false;
-      },
-    });
+  /** Swaps the boss for a rolling magma boulder (low hitbox: a normal ~128px jump clears it) and back. */
+  private setBoulderForm(on: boolean): void {
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    const h = this.sprite.height;
+    if (on) {
+      this.lastX = this.sprite.x;
+      this.boulderForm = this.scene.add.image(this.sprite.x, this.groundY, 'ember').setOrigin(0.5, 1).setScale(2.3).setDepth(this.sprite.depth + 1);
+      this.sprite.setAlpha(0);
+      body.setSize(96, 56).setOffset((this.sprite.width - 96) / 2, h - 56);
+    } else {
+      this.boulderForm?.destroy();
+      this.boulderForm = undefined;
+      this.sprite.setAlpha(1);
+      body.setSize(this.sprite.width, h).setOffset(0, 0);
+    }
+  }
+
+  /** Keeps the boulder glued to the boss and rolling in the direction of travel. */
+  private rollBoulder(): void {
+    const rock = this.boulderForm;
+    if (!rock) return;
+    const dx = this.sprite.x - this.lastX;
+    this.lastX = this.sprite.x;
+    rock.setPosition(this.sprite.x, this.groundY);
+    rock.angle += (dx / (rock.displayWidth / 2)) * (180 / Math.PI);
   }
 
   private attack(playerX: number): void {
@@ -186,7 +182,7 @@ export class Boss {
       this.scene.tweens.add({ targets: mark, alpha: 0.15, duration: 160, yoyo: true, repeat: 2 });
       this.scene.time.delayedCall(800 + i * 150, () => {
         mark.destroy();
-        if (this.defeated || this.stunned) return;
+        if (this.defeated) return;
         const r = this.hazards.create(x, -30, this.def.dropTexture) as Phaser.Physics.Arcade.Sprite;
         r.setData('kind', 'rock');
         r.setVelocityY(360);

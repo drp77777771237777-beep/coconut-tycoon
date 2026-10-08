@@ -13,8 +13,8 @@ export class CoconutTree extends Phaser.GameObjects.Sprite {
   private fullKey: string;
   private emptyKey: string;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, kind: 'normal' | 'golden' = 'normal', style?: 'jungle') {
-    const base = kind === 'golden' ? 'tree_golden' : style === 'jungle' ? 'tree_jungle' : 'tree';
+  constructor(scene: Phaser.Scene, x: number, y: number, kind: 'normal' | 'golden' = 'normal', style?: 'jungle' | 'volcano') {
+    const base = kind === 'golden' ? 'tree_golden' : style ? `tree_${style}` : 'tree';
     super(scene, x, y, `${base}_full`);
     this.kind = kind;
     this.fullKey = `${base}_full`;

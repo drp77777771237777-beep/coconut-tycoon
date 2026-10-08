@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { EVT, eventBus } from '../core/EventBus';
+import { EVT, EventSubs, eventBus } from '../core/EventBus';
 import { FONT, SCENES } from '../core/GameConfig';
 import { COLLECTIBLES } from '../data/collectibles';
 import { gameState } from '../core/GameState';
-import { ABILITIES, ABILITY_TUNING, ARENA, BOSS, COURSE, getTemple, type RelicAbility, type TempleDef } from '../data/temple';
+import { ADMIN_LIMITS } from '../data/events';
+import { ARENA, BOSS, COURSE, getTemple, type TempleDef } from '../data/temple';
 import { KeyboardInput } from '../input/KeyboardInput';
 import { touchInput } from '../input/TouchInput';
 import { CollectionSystem } from '../systems/CollectionSystem';
@@ -20,8 +21,8 @@ const GRAVITY = 900;
 
 /**
  * Optional side content per island: a side-view jump course (bonus gems) and that island's guardian boss.
- * Beating the guardian grants the island relic, which later bosses can use as abilities.
- * Independent from the economy loop; rewards are collectibles with a small permanent sell bonus.
+ * Beating the guardian grants the island relic (a small permanent coconut sell bonus).
+ * Independent from the economy loop.
  */
 export class TempleScene extends Phaser.Scene {
   private mode: Mode = 'course';
@@ -46,10 +47,7 @@ export class TempleScene extends Phaser.Scene {
   private throwCd = 0;
   private ended = false;
   private won = false;
-  private cooldowns: Record<string, number> = {};
-  private shield = 0;
-  private shieldRing?: Phaser.GameObjects.Ellipse;
-  private abilityBtns: { def: RelicAbility; bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }[] = [];
+  private subs = new EventSubs();
 
   constructor() {
     super(SCENES.temple);
@@ -60,9 +58,6 @@ export class TempleScene extends Phaser.Scene {
     this.leaving = false;
     this.ended = false;
     this.won = false;
-    this.cooldowns = {};
-    this.shield = 0;
-    this.abilityBtns = [];
     this.prevJump = false;
     this.hearts = BOSS.playerHearts;
     this.invuln = 0;
@@ -85,8 +80,11 @@ export class TempleScene extends Phaser.Scene {
 
     this.updateCamera();
     this.scale.on('resize', this.updateCamera, this);
+    this.subs.on(EVT.ADMIN_BOSS_HP, (v: number) => this.adminBossHp(v));
+    this.subs.on(EVT.ADMIN_HEARTS, (v: number) => this.adminHearts(v));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.updateCamera, this);
+      this.subs.clear();
       this.keyboard.destroy();
     });
     this.input.keyboard?.on('keydown-ESC', () => this.leave());
@@ -149,8 +147,7 @@ export class TempleScene extends Phaser.Scene {
     this.boss = new Boss(this, 820, groundY, this.temple);
     this.shots = this.physics.add.group({ allowGravity: false });
     this.boss.onArmorUp = () =>
-      eventBus.emit(EVT.BANNER, { text: this.temple.armorName, sub: 'Coconuts barely scratch it: use ☀️ Sun Beam or ⭐ Star Stun', color: '#9fb4ff' });
-    this.shieldRing = this.add.ellipse(0, 0, 60, 80, 0x9fd3ff, 0.25).setStrokeStyle(3, 0xffffff, 0.8).setDepth(11).setVisible(false);
+      eventBus.emit(EVT.BANNER, { text: this.temple.armorName, sub: 'Phase 2: coconuts hit softer', color: '#9fb4ff' });
     this.physics.add.collider(this.boss.hazards, this.platforms);
     this.physics.add.overlap(this.player, this.boss.hazards, () => this.hurt());
     this.physics.add.overlap(this.player, this.boss.sprite, () => this.hurt());
@@ -177,7 +174,7 @@ export class TempleScene extends Phaser.Scene {
     const help =
       this.mode === 'course'
         ? '← → move · W / ↑ / SPACE jump · ESC exit'
-        : '← → move · W / ↑ jump · SPACE throw coconut · 1 / 2 / 3 relic powers';
+        : '← → move · W / ↑ jump · SPACE throw coconut';
     const info = this.add.text(0, 0, help, { ...style, fontSize: '14px', strokeThickness: 4 }).setOrigin(0.5, 1).setDepth(100);
     this.pin.add(info, (w, h) => ({ x: w / 2, y: h - 10 }));
 
@@ -193,29 +190,7 @@ export class TempleScene extends Phaser.Scene {
       this.bossBar = this.add.rectangle(0, 0, 316, 10, 0xe8453c).setOrigin(0, 0.5).setDepth(101);
       this.pin.add(this.bossBar, (w) => ({ x: w / 2 - 158, y: 100 }));
       this.renderHearts();
-      this.buildAbilityButtons(style);
     }
-  }
-
-  /** Relic abilities: keys 1/2/3 on desktop, tap on mobile. Locked until the relic is collected. */
-  private buildAbilityButtons(style: Phaser.Types.GameObjects.Text.TextStyle): void {
-    ABILITIES.forEach((def, i) => {
-      const owned = CollectionSystem.has(def.id);
-      const bg = this.add.rectangle(0, 0, 64, 64, owned ? 0x1f5f86 : 0x3a3a46, 0.9).setStrokeStyle(3, 0xffffff, owned ? 0.8 : 0.25).setDepth(100);
-      const icon = this.add.text(0, 0, owned ? def.icon : '🔒', { fontSize: '30px' }).setOrigin(0.5).setDepth(101);
-      const label = this.add.text(0, 0, '', { ...style, fontSize: '13px', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(101);
-      const dx = (i - 1) * 76;
-      this.pin.add(bg, (w, h) => ({ x: w / 2 + dx, y: h - 100 }));
-      this.pin.add(icon, (w, h) => ({ x: w / 2 + dx, y: h - 100 }));
-      this.pin.add(label, (w, h) => ({ x: w / 2 + dx, y: h - 64 }));
-      if (owned) {
-        bg.setInteractive({ useHandCursor: true });
-        bg.on('pointerdown', () => this.useAbility(def));
-      } else {
-        label.setText('relic?');
-      }
-      this.abilityBtns.push({ def, bg, label });
-    });
   }
 
   private updateCamera(): void {
@@ -305,51 +280,14 @@ export class TempleScene extends Phaser.Scene {
       eventBus.emit(EVT.SOUND, 'sell');
     }
 
-    this.updateAbilities(dt);
     this.boss.update(dt, this.player.x);
     this.bossBar?.setDisplaySize((316 * this.boss.hp) / this.boss.maxHp / this.pin.zoom, 10 / this.pin.zoom);
-  }
-
-  private updateAbilities(dt: number): void {
-    this.shield = Math.max(0, this.shield - dt);
-    this.shieldRing?.setVisible(this.shield > 0).setPosition(this.player.x, this.player.y - 22);
-    for (const { def, bg, label } of this.abilityBtns) {
-      if (!CollectionSystem.has(def.id)) continue;
-      const cd = Math.max(0, (this.cooldowns[def.id] ?? 0) - dt);
-      this.cooldowns[def.id] = cd;
-      label.setText(cd > 0 ? cd.toFixed(0) + 's' : def.key.replace('Digit', '[') + ']');
-      bg.setFillStyle(cd > 0 ? 0x3a4b55 : 0x1f7a34, 0.9);
-      if (this.keyboard.consumePress(def.key)) this.useAbility(def);
-    }
-  }
-
-  private useAbility(def: RelicAbility): void {
-    const boss = this.boss;
-    if (!boss || this.ended || !CollectionSystem.has(def.id) || (this.cooldowns[def.id] ?? 0) > 0) return;
-    this.cooldowns[def.id] = def.cooldown;
-    eventBus.emit(EVT.SOUND, 'upgrade');
-    if (def.id === 'relic_sun') {
-      const facingRight = this.player.texture.key === 'player_right';
-      const y = this.player.y - 26;
-      const len = 900;
-      const beam = this.add.rectangle(this.player.x + (facingRight ? len / 2 : -len / 2), y, len, 28, 0xffd23f, 0.85).setDepth(12);
-      this.tweens.add({ targets: beam, alpha: 0, scaleY: 0.2, duration: 380, onComplete: () => beam.destroy() });
-      const inLine = facingRight ? boss.sprite.x > this.player.x : boss.sprite.x < this.player.x;
-      if (inLine) {
-        boss.hit(ABILITY_TUNING.sunDamage, true);
-        if (boss.defeated) this.win();
-      }
-    } else if (def.id === 'relic_moon') {
-      this.shield = ABILITY_TUNING.shieldSec;
-    } else if (def.id === 'relic_star') {
-      boss.stun(ABILITY_TUNING.stunSec);
-    }
   }
 
   // ---------------------------------------------------------------- outcomes
 
   private hurt(): void {
-    if (this.invuln > 0 || this.ended || this.shield > 0) return;
+    if (this.invuln > 0 || this.ended) return;
     this.hearts -= 1;
     this.invuln = BOSS.contactDamageCooldown;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(-160, -260);
@@ -376,6 +314,24 @@ export class TempleScene extends Phaser.Scene {
       color: '#ffd23f',
     });
     this.time.delayedCall(3200, () => this.leave());
+  }
+
+  private adminBossHp(value: number): void {
+    if (this.mode !== 'boss' || !this.boss || this.ended) {
+      eventBus.emit(EVT.TOAST, 'Boss fight only');
+      return;
+    }
+    this.boss.setHp(value);
+    if (this.boss.defeated) this.win();
+  }
+
+  private adminHearts(value: number): void {
+    if (this.mode !== 'boss' || this.ended) {
+      eventBus.emit(EVT.TOAST, 'Boss fight only');
+      return;
+    }
+    this.hearts = Math.min(ADMIN_LIMITS.maxHearts, Math.max(1, Math.floor(value)));
+    this.renderHearts();
   }
 
   private leave(): void {

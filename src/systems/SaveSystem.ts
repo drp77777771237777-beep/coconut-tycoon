@@ -3,9 +3,8 @@ import { EVT, eventBus } from '../core/EventBus';
 import { defaultSave, gameState, type SaveData } from '../core/GameState';
 import { UPGRADES, UPGRADE_ORDER } from '../data/upgrades';
 import { CARRIER_BALANCE, WORKER_BALANCE } from '../data/balance';
-import { getQuests } from '../data/quests';
-import { getIsland } from '../data/islands';
 import { COLLECTIBLE_IDS } from '../data/collectibles';
+import { ADMIN_LIMITS } from '../data/events';
 
 function num(v: unknown, fallback: number, min = 0): number {
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(min, v) : fallback;
@@ -26,20 +25,17 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
     const done = Array.isArray(raw.completedIslands) ? (raw.completedIslands as number[]) : [];
     const current = typeof raw.islandId === 'number' ? raw.islandId : 1;
     raw.visitedIslands = Array.from(new Set([1, current, ...done]));
-    // completed islands we are not standing on: mark their missions finished so rewards are not re-granted
-    const progress: Record<string, { questIndex: number; earned: number }> = {};
-    for (const id of done) {
-      if (id === current) continue;
-      const earnGoal = getIsland(id).goals.find((g) => g.stat === 'earned')?.target ?? 0;
-      progress[String(id)] = { questIndex: getQuests(id).length, earned: earnGoal };
-    }
-    raw.islandProgress = progress;
   }
   if (version < 4) {
     // v3 -> v4: relics became per-island boss rewards (old course relics / idol are gone)
     const old = Array.isArray(raw.collectibles) ? (raw.collectibles as string[]) : [];
     raw.collectibles = old.includes('idol_guardian') ? ['relic_moon'] : [];
   }
+  if (version < 6) {
+    // v5 -> v6: admin-pad overrides (sanitize fills the defaults)
+    raw.admin = {};
+  }
+  // v6 -> v7: missions and island completion were removed (their fields are dropped by sanitize)
   return raw;
 }
 
@@ -48,6 +44,7 @@ function sanitize(raw: Record<string, unknown>): SaveData {
   const upgrades = (raw.upgrades ?? {}) as Record<string, unknown>;
   const stats = (raw.stats ?? {}) as Record<string, unknown>;
   const settings = (raw.settings ?? {}) as Record<string, unknown>;
+  const admin = (raw.admin ?? {}) as Record<string, unknown>;
   for (const id of UPGRADE_ORDER) {
     const max = UPGRADES[id].levels.length;
     base.upgrades[id] = Math.min(max, Math.max(1, Math.floor(num(upgrades[id], 1, 1))));
@@ -56,22 +53,9 @@ function sanitize(raw: Record<string, unknown>): SaveData {
   base.islandId = Math.floor(num(raw.islandId, 1, 1));
   base.workers = Math.min(WORKER_BALANCE.maxCount, Math.floor(num(raw.workers, 0)));
   base.carriers = Math.min(CARRIER_BALANCE.maxCount, Math.floor(num(raw.carriers, 0)));
-  base.questIndex = Math.min(getQuests(base.islandId).length, Math.floor(num(raw.questIndex, 0)));
-  base.completedIslands = Array.isArray(raw.completedIslands)
-    ? raw.completedIslands.filter((n): n is number => typeof n === 'number' && Number.isFinite(n))
-    : [];
   const ids = (v: unknown): number[] =>
     Array.isArray(v) ? v.filter((n): n is number => typeof n === 'number' && Number.isFinite(n)) : [];
   base.visitedIslands = Array.from(new Set([1, base.islandId, ...ids(raw.visitedIslands)]));
-  const prog = (raw.islandProgress ?? {}) as Record<string, { questIndex?: unknown; earned?: unknown }>;
-  for (const key of Object.keys(prog)) {
-    const id = Number(key);
-    if (!Number.isFinite(id)) continue;
-    base.islandProgress[id] = {
-      questIndex: Math.floor(num(prog[key]?.questIndex, 0)),
-      earned: num(prog[key]?.earned, 0),
-    };
-  }
   base.golden = Math.floor(num(raw.golden, 0));
   base.collectibles = Array.isArray(raw.collectibles)
     ? raw.collectibles.filter((c): c is string => typeof c === 'string' && COLLECTIBLE_IDS.includes(c))
@@ -80,11 +64,16 @@ function sanitize(raw: Record<string, unknown>): SaveData {
     harvested: num(stats.harvested, 0),
     sold: num(stats.sold, 0),
     earned: num(stats.earned, 0),
-    islandEarned: num(stats.islandEarned, 0),
     golden: num(stats.golden, 0),
   };
   base.settings = { sound: settings.sound !== false };
-  const cap = UPGRADES.bagCapacity.levels[base.upgrades.bagCapacity - 1].value;
+  const override = (v: unknown, max: number): number | null =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(max, Math.floor(v)) : null;
+  base.admin = {
+    bagCapacity: override(admin.bagCapacity, ADMIN_LIMITS.maxBag),
+    coconutPrice: override(admin.coconutPrice, ADMIN_LIMITS.maxPrice),
+  };
+  const cap = base.admin.bagCapacity ?? UPGRADES.bagCapacity.levels[base.upgrades.bagCapacity - 1].value;
   base.bag = Math.min(cap, Math.floor(num(raw.bag, 0)));
   return base;
 }
@@ -135,7 +124,6 @@ export const SaveSystem = {
     timer = window.setInterval(() => SaveSystem.save(), AUTOSAVE_MS);
     eventBus.on(EVT.UPGRADE, SaveSystem.save);
     eventBus.on(EVT.WORKER, SaveSystem.save);
-    eventBus.on(EVT.ISLAND_COMPLETE, SaveSystem.save);
     window.addEventListener('beforeunload', SaveSystem.save);
     window.addEventListener('pagehide', SaveSystem.save);
     document.addEventListener('visibilitychange', () => {

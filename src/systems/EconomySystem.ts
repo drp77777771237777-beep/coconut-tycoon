@@ -1,11 +1,15 @@
 import { EVT, eventBus } from '../core/EventBus';
 import { gameState } from '../core/GameState';
 import { BALANCE } from '../data/balance';
+import { GOLDEN_RUSH } from '../data/events';
 import { getIsland } from '../data/islands';
 
 function safe(n: number): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
+
+/** End of the Golden Rush event (ms timestamp, not saved). */
+let rushUntil = 0;
 
 export const Economy = {
   money(): number {
@@ -17,12 +21,23 @@ export const Economy = {
     return 1 + BALANCE.collectibleBonus * gameState.data.collectibles.length;
   },
 
+  /** Temporary sell multiplier from the Golden Rush event. */
+  eventMult(): number {
+    return Date.now() < rushUntil ? GOLDEN_RUSH.mult : 1;
+  },
+
+  startRush(): void {
+    rushUntil = Date.now() + GOLDEN_RUSH.seconds * 1000;
+  },
+
+  /** Coins per coconut sold: the admin flat price if set, otherwise island price x relic bonus. */
   coconutValue(): number {
-    return Math.round(BALANCE.coconutValue * getIsland(gameState.data.islandId).sellMultiplier * Economy.bonus());
+    const base = gameState.data.admin.coconutPrice ?? Math.round(BALANCE.coconutValue * getIsland(gameState.data.islandId).sellMultiplier * Economy.bonus());
+    return Math.round(base * Economy.eventMult());
   },
 
   goldenValue(): number {
-    return Math.round(BALANCE.goldenValue * getIsland(gameState.data.islandId).sellMultiplier * Economy.bonus());
+    return Math.round(BALANCE.goldenValue * getIsland(gameState.data.islandId).sellMultiplier * Economy.bonus() * Economy.eventMult());
   },
 
   /** Income from selling: counts toward lifetime earnings. */
@@ -31,7 +46,6 @@ export const Economy = {
     if (gain <= 0) return 0;
     gameState.data.money = safe(gameState.data.money + gain);
     gameState.data.stats.earned = safe(gameState.data.stats.earned + gain);
-    gameState.data.stats.islandEarned = safe(gameState.data.stats.islandEarned + gain);
     eventBus.emit(EVT.MONEY, gameState.data.money);
     return gain;
   },
@@ -46,11 +60,17 @@ export const Economy = {
     return gain;
   },
 
-  /** Non-income money (quest rewards). */
+  /** Non-income money (boss / gem / event rewards). */
   grant(amount: number): void {
     const gain = Math.floor(safe(amount));
     if (gain <= 0) return;
     gameState.data.money = safe(gameState.data.money + gain);
+    eventBus.emit(EVT.MONEY, gameState.data.money);
+  },
+
+  /** Admin pad: overwrite the balance. */
+  setMoney(amount: number): void {
+    gameState.data.money = Math.floor(safe(amount));
     eventBus.emit(EVT.MONEY, gameState.data.money);
   },
 

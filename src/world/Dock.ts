@@ -4,12 +4,10 @@ import { FONT } from '../core/GameConfig';
 import { FLAT_DEPTH } from '../utils/DepthUtils';
 import { InteractZone } from './InteractZone';
 
-/** Pier + boat. Locked until the island is complete; boarding shows "Coming Soon" in the MVP. */
+/** Pier + boat. Boarding opens the destination menu. */
 export class Dock {
   readonly zone: InteractZone;
   private boat: Phaser.GameObjects.Image;
-  private sign: Phaser.GameObjects.Text;
-  private active = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     scene.add.image(x, y - 30, 'pier').setOrigin(0.5, 0).setDepth(FLAT_DEPTH + 2);
@@ -20,8 +18,8 @@ export class Dock {
     this.boat.on('pointerdown', () => this.board());
 
     this.zone = new InteractZone(scene, x, y + 40, 200, 90, 0x7fe0ff, 'DOCK', y - 20);
-    this.sign = scene.add
-      .text(x, boatY - 78, '', {
+    scene.add
+      .text(x, boatY - 78, '⛵ TRAVEL', {
         fontFamily: FONT,
         fontSize: '16px',
         fontStyle: 'bold',
@@ -31,24 +29,9 @@ export class Dock {
       })
       .setOrigin(0.5, 1)
       .setDepth(boatY + 2);
-    this.zone.onEnter = () => {
-      if (!this.active) eventBus.emit(EVT.TOAST, 'Complete the island goals to unlock the boat');
-    };
-    this.setActive(false);
-  }
-
-  setActive(active: boolean): void {
-    this.active = active;
-    this.boat.setAlpha(active ? 1 : 0.55);
-    this.sign.setText(active ? '⛵ TRAVEL' : '🔒 LOCKED');
   }
 
   board(): void {
-    if (!this.active) {
-      eventBus.emit(EVT.TOAST, 'Complete the island goals to unlock the boat');
-      eventBus.emit(EVT.SOUND, 'error');
-      return;
-    }
     eventBus.emit(EVT.BOARD);
   }
 
