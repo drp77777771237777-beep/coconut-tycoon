@@ -1,2 +1,0 @@
-# coconut-tycoon
-coconut tycoon
